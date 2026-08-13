@@ -1,0 +1,21 @@
+{
+  "encoder": {
+    "eisize": 17,
+    "eosize": 32,
+    "enlayer": 4,
+    "ehsize": 64,
+    "edropout": 0.1
+  },
+  "predictor": {
+    "phsize": 32,
+    "pdropout": 0.1
+  },
+  "dynamics": {
+    "isize": 35,
+    "osize": 1,
+    "nlayer": 4,
+    "hsize": 64,
+    "dropout": 0.1
+  }
+}
+
