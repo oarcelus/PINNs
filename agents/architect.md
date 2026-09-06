@@ -27,7 +27,7 @@ Label each statement as a verified code fact, approved decision, or assumption. 
 
 ## PINNs-specific guardrails
 
-- Treat the independent/temporal coordinate as a domain decision. The current model differentiates with respect to the final input column while the loader puts `Cycle Number` first. Never reorder features, rename `ut`, or change derivatives without an explicit coordinate decision, schema update, compatibility plan, and targeted tests.
+- Treat the independent/temporal coordinate as a domain decision. The current model uses input index 0 (`Cycle Number`) as that coordinate: `ut` is its derivative and `ux` contains the 16 descriptor derivatives. Never reorder features, rename `ut`, or change derivative semantics without an explicit coordinate decision, schema/checkpoint compatibility plan, and targeted tests.
 - Preserve or explicitly revise the 17/16/1/35 contract described in `README.md`. If feature count becomes configurable, state and validate the full dimension formula rather than retaining a magic number.
 - State pair boundaries: adjacent samples must remain inside their condition/cell; name the ordering key and behavior for missing or duplicate cycles.
 - Address leakage explicitly: pairing across a split, group/cell versus random-row splits, temporal ordering, and whether normalization statistics can see evaluation groups.

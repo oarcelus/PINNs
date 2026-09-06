@@ -27,7 +27,7 @@ Build fast, meaningful tests that demonstrate the approved behavior and turn Rev
 | --- | --- |
 | Model/config | Valid configuration produces `u=[B,1]`, residual `[B,1]`, and the expected dynamics input width; invalid or incompatible dimensions fail early when the spec requires validation. Cover documented MLP behavior for `nlayer < 2`. |
 | Autograd | Synthetic inputs support residual calculation and backward propagation; parameter gradients are finite where expected; tests retain grad mode while evaluating a residual. |
-| Coordinate semantics | Tests encode the Architect-approved independent/time coordinate and feature order. Never encode an unapproved interpretation of the current first-versus-last-column ambiguity. |
+| Coordinate semantics | Tests protect the approved contract: `Cycle Number` is input 0, `ut` is its derivative, and `ux` contains the 16 remaining derivatives. A future coordinate change requires an Architect-approved specification and a revised test oracle. |
 | Data loader | Temporary CSVs verify target/input selection, adjacent pairing only within a cell, ordering, schema errors, numeric/finite handling, and tensor shapes/dtypes specified by the contract. |
 | Loss/training | Hand-computable synthetic batches validate loss components, reductions, the Architect-approved monotonicity direction/sign, and a short deterministic optimization/smoke step where useful. |
 | Splits/normalization | Tests verify the approved group/time separation and statistics scope; explicitly cover leakage regressions if the task changes this behavior. |

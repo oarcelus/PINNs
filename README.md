@@ -10,7 +10,7 @@ The high-level approach is inspired by Wang et al., who combine a feature-to-SoH
 
 > Wang, F., Zhai, Z., Zhao, Z. et al. *Physics-informed neural network for lithium-ion battery degradation stable modeling and prognosis*. **Nature Communications 15**, 4332 (2024). [https://doi.org/10.1038/s41467-024-48779-z](https://doi.org/10.1038/s41467-024-48779-z)
 
-The repository follows that broad design but is an adaptation, not an asserted line-for-line reproduction. Its data windows, preprocessing thresholds, loss implementation, and current derivative-coordinate handling differ in important ways described below.
+The repository follows that broad design but is an adaptation, not an asserted line-for-line reproduction. Its data windows, preprocessing thresholds, loss implementation, and positional feature-schema contract differ in important ways described below.
 
 ## Repository map
 
@@ -118,8 +118,8 @@ The PINN also has a dynamics MLP, configured as `35 -> 64 -> 64 -> 64 -> 1`. In 
 ```text
 u       = SoHNetwork(xt)
 du_dxt  = autograd.grad(sum(u), xt)
-ux      = du_dxt[:, :-1]
-ut      = du_dxt[:, -1:]
+ux      = du_dxt[:, 1:]                    # derivatives with respect to 16 descriptors
+ut      = du_dxt[:, 0:1]                   # derivative with respect to Cycle Number
 dynamics_input = concat(xt, u, ux, ut)      # 17 + 1 + 16 + 1 = 35 columns
 residual = ut - DynamicsNetwork(dynamics_input)
 ```
@@ -137,11 +137,11 @@ L      = L_data + 0.7 * L_mono + 0.2 * L_pde
 
 Evaluation must leave autograd enabled because `PINN.forward` calculates a derivative even in `eval()` mode. Do not wrap residual evaluation in `torch.no_grad()` or `torch.inference_mode()`.
 
-### Important model-review caveat
+### Coordinate convention and remaining model-review caveat
 
-The cited paper describes cycle as `t`, the time coordinate. The feature CSV and loader place `Cycle Number` in the **first** input column. The current implementation, however, defines `ut` as the derivative with respect to the **last** input column, which is currently `Current entropy`. Therefore the implemented residual is presently a derivative with respect to the final descriptor, not a derivative with respect to cycle number.
+The cited paper describes cycle as `t`, the time coordinate. The feature CSV and loader place `Cycle Number` in the **first** input column, and `PINN.forward` now explicitly selects that coordinate: `ut = du_dxt[:, 0:1]`. `ux = du_dxt[:, 1:]` contains the derivatives with respect to the 16 descriptors. The residual therefore uses the derivative with respect to cycle, consistent with the intended time-coordinate convention.
 
-This must be resolved explicitly before calling the residual a battery-degradation equation in the sense of the paper. It requires a documented choice of input ordering or explicit coordinate selection, compatible schema changes, and targeted tests.
+This is still a positional schema contract. `FeatureDataset` selects CSV columns by position and neither it nor `PINN.forward` validates a time-column name or index. Reordering or extending the feature CSV without a compatible schema change can silently alter the scientific meaning of the residual. Preserve this order, or version the schema, checkpoint interpretation, and targeted tests together. Checkpoints trained before this coordinate correction have the same tensor dimensions but a different physics-loss meaning; retrain them rather than compare them as equivalent runs.
 
 The monotonicity expression also needs scientific confirmation. For declining ground-truth SoH, both `u2-u1` and `y2-y1` are negative when the prediction declines correctly, making their product positive and therefore adding a penalty. That differs from the paper's described penalty for predicted SoH increases. The paper describes the PDE and monotonicity terms with the opposite `alpha`/`beta` assignment to the current code. These are review findings, not silently corrected behavior.
 
@@ -210,7 +210,7 @@ Before relying on a result, record and review:
 - which of the 40V/41V pipelines and source workbooks were used;
 - CC/CV window thresholds, interpolation method, capacity reference, and cleaner;
 - whether generated labels were interpolated or direct check-up measurements;
-- the exact feature schema and the selected physics/time coordinate;
+- the exact feature schema and the explicit cycle/time-coordinate convention (currently input index 0);
 - split unit (pair, cycle, cell, or time) and how normalization was fitted;
 - configuration, seed/thread settings, checkpoint choice, and whether test loss influenced model selection.
 

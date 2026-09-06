@@ -122,8 +122,8 @@ class PINN(nn.Module):
         uxt = grad(
             u.sum(), xt, create_graph=True, only_inputs=True
         )[0]
-        ux = uxt[:, :-1]
-        ut = uxt[:, -1:]
+        ux = uxt[:, 1:]
+        ut = uxt[:, 0:1]
 
         f = self.f(torch.cat([xt, u, ux, ut], dim=1))
         l = ut - f
