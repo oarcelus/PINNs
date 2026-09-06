@@ -46,7 +46,7 @@ Run one pipeline variant at a time. All scripts use paths relative to the **curr
 
 - Running from `data/` (for example, `python 40V/gather.py`) writes the `data/processed_*` locations expected by the default model scripts, but the 40V and 41V variants then share and can overwrite the same outputs.
 - Running inside `data/40V/` or `data/41V/` keeps their generated directories separate, but you must update the model scripts' `data_path` to point to that chosen cleaned-output directory.
-- `gather.py` starts from a hard-coded external `/mnt/o/...` source location. Configure those paths and condition lists for the data available in your environment before running it.
+- `gather.py` starts from a hard-coded external source location. Configure those paths and condition lists for the data available in your environment before running it.
 
 ### Suggested order
 
