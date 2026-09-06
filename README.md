@@ -10,7 +10,7 @@ The high-level approach is inspired by Wang et al., who combine a feature-to-SoH
 
 > Wang, F., Zhai, Z., Zhao, Z. et al. *Physics-informed neural network for lithium-ion battery degradation stable modeling and prognosis*. **Nature Communications 15**, 4332 (2024). [https://doi.org/10.1038/s41467-024-48779-z](https://doi.org/10.1038/s41467-024-48779-z)
 
-The repository follows that broad design but is an adaptation, not an asserted line-for-line reproduction. Its data windows, preprocessing thresholds, loss implementation, and positional feature-schema contract differ in important ways described below.
+The repository is my atttempt at reproducing their methodology with the cycling data that I have access to. The original code repository can be found at https://github.com/wang-fujin/PINN4SOH/tree/main
 
 ## Repository map
 
