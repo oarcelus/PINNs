@@ -8,7 +8,7 @@ from cicemok.experiments import ICIExperiment
 
 
 directory_path = [
-    "/mnt/o/a) Research area/01 - Batteries & Supercaps/Funded projects & GRANTS/1 - Basque Projects/CICe2024 (PG001422)/02 Research/PT3/Aging/Check ups/Initial check up",
+    "path to data",
 ]
 
 output_file = "capacities.csv"

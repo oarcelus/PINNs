@@ -2,8 +2,10 @@ import os
 import pandas as pd
 
 
-aging_path = "/mnt/o/a) Research area/01 - Batteries & Supercaps/Funded projects & GRANTS/1 - Basque Projects/CICe2024 (PG001422)/02 Research/PT3/Aging/Aging"
-checkup_path = "/mnt/o/a) Research area/01 - Batteries & Supercaps/Funded projects & GRANTS/1 - Basque Projects/CICe2024 (PG001422)/02 Research/PT3/Aging/Check ups"
+aging_path = "path to cycling data"
+checkup_path = "path to refference periodic checkup data"
+
+# In this script we get the full cell history by concatenating different aging and checkup data files
 
 age_number = [
     "/Aging 1",
