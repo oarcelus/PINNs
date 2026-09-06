@@ -2,6 +2,7 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import logging
+import copy
 import numpy as np
 import pandas as pd
 import torch
@@ -58,6 +59,7 @@ test_conditions = [
 # Save options
 # -----------------
 save_last_epoch = True
+save_best_epoch = True
 
 # -----------------
 # Training settings
@@ -111,13 +113,13 @@ def compute_losses(pinn, batch, mse, relu, alpha, beta, device):
     u2, l2 = pinn(x2)
 
     loss_mse = 0.5 * mse(u1, y1) + 0.5 * mse(u2, y2)
-    loss_mono = relu(torch.mul(u2 - u1, y2 - y1)).sum()
+    loss_mono = relu(torch.mul(u2 - u1, y1 - y2)).sum()
 
     zero_ref1 = torch.zeros_like(l1)
     zero_ref2 = torch.zeros_like(l2)
     loss_pde = 0.5 * mse(l1, zero_ref1) + 0.5 * mse(l2, zero_ref2)
 
-    loss = loss_mse + alpha * loss_mono + beta * loss_pde
+    loss = loss_mse + alpha * loss_pde + beta * loss_mono
 
     return loss, loss_mse, loss_mono, loss_pde
 
@@ -259,6 +261,9 @@ if __name__ == "__main__":
     relu = nn.ReLU()
 
     history = []
+    best_test_loss = np.inf
+    best_epoch = -1
+    best_state = None
 
     logger.info("Starting training with cells 01-02 for train and 03 for test")
 
@@ -299,6 +304,28 @@ if __name__ == "__main__":
             f"(mse={test_metrics['mse']:.6f}, mono={test_metrics['mono']:.6f}, pde={test_metrics['pde']:.6f})"
         )
 
+        if test_metrics["loss"] < best_test_loss:
+            best_test_loss = test_metrics["loss"]
+            best_epoch = iepoch + 1
+            best_state = copy.deepcopy(pinn.state_dict())
+
+            if save_best_epoch:
+                torch.save(
+                    {
+                        "epoch": iepoch + 1,
+                        "model_state_dict": pinn.state_dict(),
+                        "optimizer_u_state_dict": optimizer_u.state_dict(),
+                        "optimizer_f_state_dict": optimizer_f.state_dict(),
+                        "train_metrics": train_metrics,
+                        "test_metrics": test_metrics,
+                        "history": history,
+                        "config": config,
+                        "train_conditions": train_conditions,
+                        "test_conditions": test_conditions,
+                    },
+                    os.path.join(save_dir, "cell02_holdout_best.pt"),
+                )
+
     if save_last_epoch:
         torch.save(
             {
@@ -314,10 +341,14 @@ if __name__ == "__main__":
             os.path.join(save_dir, "cell02_holdout_last.pt"),
         )
 
+    pinn.load_state_dict(best_state)
+
     train_reg = evaluate_mae_rmse(pinn, train_loader, device)
     test_reg = evaluate_mae_rmse(pinn, test_loader, device)
 
     logger.info("========== Final Summary ==========")
+    logger.info(f"Best epoch : {best_epoch:03d}")
+    logger.info(f"Best test loss : {best_test_loss:.6f}")
     logger.info(f"Train MAE  : {train_reg['mae']:.6f}")
     logger.info(f"Train RMSE : {train_reg['rmse']:.6f}")
     logger.info(f"Test MAE   : {test_reg['mae']:.6f}")

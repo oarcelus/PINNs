@@ -89,13 +89,13 @@ def compute_losses(pinn, batch, mse, relu, alpha, beta, device):
     u2, l2 = pinn(x2)
 
     loss_mse = 0.5 * mse(u1, y1) + 0.5 * mse(u2, y2)
-    loss_mono = relu(torch.mul(u2 - u1, y2 - y1)).sum()
+    loss_mono = relu(torch.mul(u2 - u1, y1 - y2)).sum()
 
     zero_ref1 = torch.zeros_like(l1)
     zero_ref2 = torch.zeros_like(l2)
     loss_pde = 0.5 * mse(l1, zero_ref1) + 0.5 * mse(l2, zero_ref2)
 
-    loss = loss_mse + alpha * loss_mono + beta * loss_pde
+    loss = loss_mse + alpha * loss_pde + beta * loss_mono
 
     return loss, loss_mse, loss_mono, loss_pde
 

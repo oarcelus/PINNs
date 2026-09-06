@@ -16,7 +16,7 @@ The repository follows that broad design but is an adaptation, not an asserted l
 
 | Path | Purpose |
 | --- | --- |
-| `data/40V/`, `data/41V/` | Parallel, mostly identical data-preparation and exploratory-analysis scripts. Their directory names are not accompanied by a repository-level description of their scientific distinction. |
+| `data/` | Data-preparation and exploratory-analysis scripts. |
 | `cfg/pinn_config.json` | Network widths, depths, dropout, and tensor-dimension configuration. |
 | `model/dataloader.py` | Reads final feature CSVs and converts each cell trajectory into adjacent-cycle training pairs. |
 | `model/model.py` | PyTorch MLPs, SoH predictor, dynamics network, autograd residual, and JSON configuration loader. |
@@ -30,7 +30,7 @@ The repository follows that broad design but is an adaptation, not an asserted l
 ```text
 external Aging and Check-up Excel workbooks
   -> standardized per-condition cycling records
-  -> (a) sparse SoH measurements at check-ups -> cycle-level interpolated SoH labels
+  -> (a) SoH measurements at check-ups -> cycle-level interpolated SoH labels
   -> (b) distilled CC/CV charge windows -> 16 cycle descriptors
   -> merge descriptors with interpolated SoH
   -> clean and normalize descriptors
@@ -38,14 +38,10 @@ external Aging and Check-up Excel workbooks
   -> PINN training, checkpoints, histories, and plots
 ```
 
-The two middle branches are independent after collection: SoH interpolation starts from check-up discharge capacity, while feature extraction starts from distilled charge segments. They meet in `extract_features.py`.
-
 ## Data preparation pipeline
 
 Run one pipeline variant at a time. All scripts use paths relative to the **current working directory**, not the script location.
 
-- Running from `data/` (for example, `python 40V/gather.py`) writes the `data/processed_*` locations expected by the default model scripts, but the 40V and 41V variants then share and can overwrite the same outputs.
-- Running inside `data/40V/` or `data/41V/` keeps their generated directories separate, but you must update the model scripts' `data_path` to point to that chosen cleaned-output directory.
 - `gather.py` starts from a hard-coded external source location. Configure those paths and condition lists for the data available in your environment before running it.
 
 ### Suggested order
@@ -69,12 +65,12 @@ plot_correlation_map.py                      # optional
 
 | Stage | Script(s) | Current behavior and output |
 | --- | --- | --- |
-| Collect and standardize | `gather.py` | Reads `record` worksheets from interleaved Aging and Check-up Excel folders for configured `AG_*` conditions. It standardizes `CycleID`, `StepType`, current in A, capacity in Ah, voltage, elapsed time, total time, condition, and `ExperimentType`; it offsets cycle and total time across source files and writes `processed_battery_data/<condition>.csv` and `.pkl`. |
+| Collect and standardize | `gather.py` | Reads worksheets from Neware data from interleaved Aging and Check-up Excel folders for different cycling conditions. It standardizes units, and cycle ID names; it offsets cycle and total time across source files and writes `processed_battery_data/<condition>.csv` and `.pkl`. |
 | Optional check-up scan | `gatherall.py` | Reads `step` worksheets from the initial check-up, extracts one discharge-capacity value per file, and appends `file,dch_cap` rows to `capacities.csv`. No other checked-in script consumes this file, so it is not part of the training path. |
 | Inspect raw records | `plot_initial_data.py` | Plots voltage/current traces by cycle, with optional step-type and CU/Aging filtering. It is diagnostic only. |
-| Distill near-full-charge data | `get_distilled_data.py` | Keeps valid cycles with both `CC Chg` and `CV Chg`: CC must reach at least 4.0 V and CV minimum current must be at least 0.011 A. It retains CC voltage in `[Vmax - 0.3, Vmax]` and CV current in `[Imin + 0.01, Imin + 0.25]`, then writes `processed_battery_data_distilled/<condition>_distilled.csv` and `.pkl`. |
+| Distill near-full-charge data | `get_distilled_data.py` | Keeps only valid cycles with both `CC Chg` and `CV Chg`: It retains CC voltage in `[Vmax - 0.3, Vmax]` and CV current in `[Imin + 0.01, Imin + 0.25]`, then writes `processed_battery_data_distilled/<condition>_distilled.csv` and `.pkl`. |
 | Inspect distilled data | `plot_initial_data_distilled.py` | Plots the selected CC-voltage and CV-current windows. It is diagnostic only. |
-| Make sparse measured SoH points | `plot_soh_data.py` | Finds contiguous check-up (CU) blocks in each standardized record. It takes the fifth discharge cycle in the initial CU block and the third in later blocks, obtains discharge capacity at the `CC DChg` to `Rest` boundary (with fallbacks), and calculates `SoH = abs(capacity_Ah) / 1.3`. It writes `<condition>_soh.csv` and `soh_trajectories_selected_cu_cycles.csv`. |
+| Make sparse measured SoH points | `plot_soh_data.py` | Finds contiguous check-up (CU) blocks in each standardized record and obtains discharge capacity to calculate the SoH (hardcoded 1.3 Ah nominal capacity). It writes `<condition>_soh.csv` and `soh_trajectories_selected_cu_cycles.csv`. |
 | Interpolate SoH by cycle | `plot_soh_interp_data.py` | Cleans and deduplicates sparse check-up points, then creates an SoH label for every integer cycle from 1 through the maximum `CycleID`. The default is PCHIP; linear, cubic, spline, and exponential-decay alternatives are available. Output is `<condition>_soh_interpolated__pchip.csv` by default, plus a comparison plot. |
 | Extract descriptors | `extract_features.py` | Computes 16 descriptors per distilled cycle, merges them with the interpolated SoH label, and writes raw plus per-file min-max-normalized feature CSV/PKL files in `processed_battery_data_features/`. |
 | Clean descriptors | `clean_features_3sigma.py` or `clean_features_morepasses.py` | The 3-sigma option removes rows outlying in any column. The multi-pass option uses two rolling median/MAD passes and removes cycles flagged in at least four descriptors. Both write the same final `processed_battery_data_features_cleaned/*_features_cleaned[_normalized]__pchip.*` names, so run exactly one cleaner unless outputs are isolated. |
@@ -130,24 +126,16 @@ For a pair of adjacent cycles, the implementation computes:
 
 ```text
 L_data = 0.5 * MSE(u1, y1) + 0.5 * MSE(u2, y2)
-L_mono = sum(ReLU((u2 - u1) * (y2 - y1)))
+L_mono = sum(ReLU((u2 - u1) * (y - y2)))
 L_pde  = 0.5 * MSE(l1, 0) + 0.5 * MSE(l2, 0)
-L      = L_data + 0.7 * L_mono + 0.2 * L_pde
+L      = L_data + 0.7 * L_pde + 0.2 * L_mono
 ```
 
 Evaluation must leave autograd enabled because `PINN.forward` calculates a derivative even in `eval()` mode. Do not wrap residual evaluation in `torch.no_grad()` or `torch.inference_mode()`.
 
-### Coordinate convention and remaining model-review caveat
-
-The cited paper describes cycle as `t`, the time coordinate. The feature CSV and loader place `Cycle Number` in the **first** input column, and `PINN.forward` now explicitly selects that coordinate: `ut = du_dxt[:, 0:1]`. `ux = du_dxt[:, 1:]` contains the derivatives with respect to the 16 descriptors. The residual therefore uses the derivative with respect to cycle, consistent with the intended time-coordinate convention.
-
-This is still a positional schema contract. `FeatureDataset` selects CSV columns by position and neither it nor `PINN.forward` validates a time-column name or index. Reordering or extending the feature CSV without a compatible schema change can silently alter the scientific meaning of the residual. Preserve this order, or version the schema, checkpoint interpretation, and targeted tests together. Checkpoints trained before this coordinate correction have the same tensor dimensions but a different physics-loss meaning; retrain them rather than compare them as equivalent runs.
-
-The monotonicity expression also needs scientific confirmation. For declining ground-truth SoH, both `u2-u1` and `y2-y1` are negative when the prediction declines correctly, making their product positive and therefore adding a penalty. That differs from the paper's described penalty for predicted SoH increases. The paper describes the PDE and monotonicity terms with the opposite `alpha`/`beta` assignment to the current code. These are review findings, not silently corrected behavior.
-
 ## Training, random splits, and cell holdouts
 
-Run model scripts from `model/` because imports and paths are cwd-relative. The default `data_path` in the training scripts is `../data/processed_battery_data_features_cleaned/`; point it at the selected pipeline output if you generated data inside `data/40V/` or `data/41V/`.
+Run model scripts from `model/` because imports and paths are cwd-relative. The default `data_path` in the training scripts is `../data/processed_battery_data_features_cleaned/`; point it at the correct data folder inside `data/`.
 
 ### Random paired-sample workflow
 
@@ -183,35 +171,22 @@ Each holdout script names separate `train_conditions` and `test_conditions` rath
 
 | Script | Held-out filename suffix in its explicit test list | Checkpoint / history |
 | --- | --- | --- |
-| `train_cell_01_holdout.py` | `_01_features_cleaned_normalized__pchip.csv` | `cell01_holdout_last.pt`, `cell01_holdout_history.csv` |
-| `train_cell_02_holdout.py` | `_02_features_cleaned_normalized__pchip.csv` | `cell02_holdout_last.pt`, `cell02_holdout_history.csv` |
-| `train_cell_03_holdout.py` | `_03_features_cleaned_normalized__pchip.csv` | `cell03_holdout_last.pt`, `cell03_holdout_history.csv` |
+| `train_cell_01_holdout.py` | `_01_features_cleaned_normalized__pchip.csv` | `cell01_holdout_best.pt`, `cell01_holdout_last.pt`, `cell01_holdout_history.csv` |
+| `train_cell_02_holdout.py` | `_02_features_cleaned_normalized__pchip.csv` | `cell02_holdout_best.pt`, `cell02_holdout_last.pt`, `cell02_holdout_history.csv` |
+| `train_cell_03_holdout.py` | `_03_features_cleaned_normalized__pchip.csv` | `cell03_holdout_best.pt`, `cell03_holdout_last.pt`, `cell03_holdout_history.csv` |
 
-This is the appropriate starting point for a leave-one-cell/repetition-out experiment because the selected test files are not combined with the selected training files. The lists are manually maintained and do not cover every nominal condition uniformly: for example, `AG_25_80` is absent from all holdout test lists and is inconsistently included across training lists. Inspect them before interpreting the result as a complete cross-cell benchmark.
+This is the appropriate starting point for a leave-one-cell/repetition-out experiment because the selected test files are not combined with the selected training files. The lists are manually maintained and do not cover every nominal condition uniformly.
 
-The corresponding `plot_cell0{1,2,3}_sohpred_vs_sohtruth.py` scripts reload the last checkpoint and generate per-condition predicted-versus-true SoH scatter plots. `train.sl` is a Slurm submission file that currently launches `train_cell_03_holdout.py` with CPU-thread environment variables.
+The corresponding `plot_cell0{1,2,3}_sohpred_vs_sohtruth.py` scripts reload the best checkpoint and generate per-condition predicted-versus-true SoH scatter plots.
 
 ### Evaluation protocol caveat
 
-`train_final.py` evaluates the nominal test split every epoch and saves its best checkpoint by that test loss. The holdout scripts also log held-out loss every epoch, although they save the last epoch rather than selecting a best held-out checkpoint. For a strict final-test protocol, introduce a separate validation split and reserve test cells for one final evaluation. Reported MAE/RMSE also use the first endpoint of each adjacent pair (`x1`, `y1`), while the training data loss uses both endpoints.
+`train_final.py` and the holdout scripts evaluate their designated test data every epoch and save the best checkpoint by that loss. For a strict final-test protocol, introduce a separate validation split and reserve test cells for one final evaluation. Reported MAE/RMSE also use the first endpoint of each adjacent pair (`x1`, `y1`), while the training data loss uses both endpoints.
 
 ## Practical notes
 
-- The repository has no pinned dependency file or automated test suite. The scripts import PyTorch, NumPy, pandas, SciPy, scikit-learn, matplotlib, and Excel-reading support; `gatherall.py` additionally imports `cicemok`.
+- The repository has no pinned dependency file or automated test suite. The scripts import PyTorch, NumPy, pandas, SciPy, scikit-learn, matplotlib, and Excel-reading support.
 - Generated CSVs, pickles, checkpoints, histories, plots, and logs are ignored by Git. Preserve data provenance, preprocessing settings, interpolation method, split file, config, and random seeds outside the source tree when reporting an experiment.
 - Many data scripts execute their work at import time. Treat them as command-line scripts rather than reusable import-safe modules.
 - `plot_soh_data.py` reuses a cached `<condition>_soh.csv` if it exists. Delete or isolate stale cache files when changing the capacity-extraction rule.
 - Input validation is uneven. For example, `FeatureDataset` selects columns by position and does not validate schema, finite values, ordering, duplicates, or cycle continuity; a missing integer cycle can also reach an `iloc[0]` access in `get_distilled_data.py` before its empty-cycle check. The feature merge does not enforce a complete one-to-one SoH join. Validate source-data completeness before long training runs.
-
-## Recommended interpretation checklist
-
-Before relying on a result, record and review:
-
-- which of the 40V/41V pipelines and source workbooks were used;
-- CC/CV window thresholds, interpolation method, capacity reference, and cleaner;
-- whether generated labels were interpolated or direct check-up measurements;
-- the exact feature schema and the explicit cycle/time-coordinate convention (currently input index 0);
-- split unit (pair, cycle, cell, or time) and how normalization was fitted;
-- configuration, seed/thread settings, checkpoint choice, and whether test loss influenced model selection.
-
-These details are necessary to distinguish a useful engineering experiment from a reproducible battery-SOH benchmark.

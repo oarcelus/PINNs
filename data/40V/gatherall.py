@@ -4,8 +4,6 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from cicemok.experiments import ICIExperiment
-
 
 directory_path = [
     "path to data",

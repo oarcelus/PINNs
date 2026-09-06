@@ -18,7 +18,7 @@ plot_dir = "./plots"
 
 os.makedirs(plot_dir, exist_ok=True)
 
-checkpoint_path = os.path.join(save_dir, "cell01_holdout_last.pt")
+checkpoint_path = os.path.join(save_dir, "cell01_holdout_best.pt")
 
 test_conditions = [
     "AG_25_100_A_01_features_cleaned_normalized__pchip.csv",
