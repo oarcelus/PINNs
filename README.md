@@ -179,10 +179,6 @@ This is the appropriate starting point for a leave-one-cell/repetition-out exper
 
 The corresponding `plot_cell0{1,2,3}_sohpred_vs_sohtruth.py` scripts reload the best checkpoint and generate per-condition predicted-versus-true SoH scatter plots.
 
-### Evaluation protocol caveat
-
-`train_final.py` and the holdout scripts evaluate their designated test data every epoch and save the best checkpoint by that loss. For a strict final-test protocol, introduce a separate validation split and reserve test cells for one final evaluation. Reported MAE/RMSE also use the first endpoint of each adjacent pair (`x1`, `y1`), while the training data loss uses both endpoints.
-
 ## Practical notes
 
 - The repository has no pinned dependency file or automated test suite. The scripts import PyTorch, NumPy, pandas, SciPy, scikit-learn, matplotlib, and Excel-reading support.
